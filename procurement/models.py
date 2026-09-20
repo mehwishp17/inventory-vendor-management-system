@@ -178,3 +178,37 @@ class PurchaseOrderItem(models.Model):
             f"{self.purchase_order.po_no} - "
             f"Product {self.product_id}"
         )
+
+
+
+class GoodsReceipt(models.Model):
+    STATUS_CHOICES = [
+        ("PENDING", "PENDING"),
+        ("PARTIAL", "PARTIAL"),
+        ("COMPLETE", "COMPLETE"),
+    ]
+
+    grn_no = models.CharField(max_length=100, unique=True)
+    purchase_order = models.ForeignKey(
+        PurchaseOrder,
+        on_delete=models.CASCADE,
+        related_name="receipts",
+    )
+
+    warehouse_id = models.IntegerField()
+    received_by = models.IntegerField(blank=True, null=True)
+    received_date = models.DateField(blank=True, null=True)
+
+    received_items = models.IntegerField(default=0)
+    total_items = models.IntegerField(default=0)
+
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="PENDING",
+    )
+
+    inspection_notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.grn_no

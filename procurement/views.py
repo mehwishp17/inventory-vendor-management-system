@@ -21,7 +21,7 @@ from .services import (
     approve_purchase_order,
 )
 
-from .models import PurchaseOrder
+from .models import PurchaseOrder, GoodsReceipt
 
 
 # ============================================================
@@ -636,3 +636,91 @@ def approve_purchase_order_view(request, purchase_order_id):
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+
+    
+# after line 641
+
+@extend_schema(
+    request=inline_serializer(
+        name="CreateGoodsReceiptRequest",
+        fields={
+            "purchase_order_id": serializers.IntegerField(),
+            "warehouse_id": serializers.IntegerField(),
+            "received_date": serializers.DateField(),
+            "received_items": serializers.IntegerField(),
+            "total_items": serializers.IntegerField(),
+            "inspection_notes": serializers.CharField(
+                required=False,
+                allow_blank=True
+            ),
+        },
+    ),
+    responses={
+        201: inline_serializer(
+            name="CreateGoodsReceiptResponse",
+            fields={
+                "success": serializers.BooleanField(),
+                "message": serializers.CharField(),
+                "data": serializers.DictField(),
+            },
+        ),
+        400: OpenApiResponse(description="Validation failed"),
+        401: OpenApiResponse(description="Authentication required"),
+    },
+)
+
+@api_view(["POST"])
+@authentication_classes([JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def create_goods_receipt_view(request):
+
+
+    purchase_order_id = request.data.get("purchase_order_id")
+    warehouse_id = request.data.get("warehouse_id")
+    received_date = request.data.get("received_date")
+    received_items = request.data.get("received_items")
+    total_items = request.data.get("total_items")
+    inspection_notes = request.data.get("inspection_notes", "")
+
+    if not purchase_order_id:
+        return Response(
+            {
+                "success": False,
+                "message": "Purchase Order is required."
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    purchase_order = PurchaseOrder.objects.get(id=purchase_order_id)
+
+    if int(received_items) == int(total_items):
+        receipt_status = "COMPLETE"
+    elif int(received_items) > 0:
+        receipt_status = "PARTIAL"
+    else:
+        receipt_status = "PENDING"
+
+    receipt = GoodsReceipt.objects.create(
+        grn_no=f"GRN-{purchase_order.id:03}",
+        purchase_order=purchase_order,
+        warehouse_id=warehouse_id,
+        received_by=request.user.id,
+        received_date=received_date,
+        received_items=received_items,
+        total_items=total_items,
+        status=receipt_status,
+        inspection_notes=inspection_notes,
+    )
+
+    return Response(
+        {
+            "success": True,
+            "message": "Goods Receipt created successfully.",
+            "data": {
+                "grn_no": receipt.grn_no,
+                "status": receipt.status,
+            }
+        },
+        status=status.HTTP_201_CREATED,
+    )
